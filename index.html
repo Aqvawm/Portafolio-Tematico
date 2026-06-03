@@ -596,19 +596,29 @@ async function renderPortfolio(id) {
   const themePerf = GROUPS.map(g => {
     const gPos = pos.filter(p => g.tickers.includes(p.t));
     if (!gPos.length) return null;
-    let gCost=0, gNow=0, gHasData=false;
+    let gCost=0, gNow=0, gHasData=false, gRealized=0, gUnrealized=0;
     gPos.forEach(p => {
       const price = cache[p.t]?.q?.c;
       const cost  = p.qty * p.cost;
-      gCost += cost;
-      if (price != null) { gNow += p.qty * price; gHasData = true; }
+      gCost     += cost;
+      gRealized += p.realizedPnl || 0;
+      if (price != null) {
+        gNow        += p.qty * price;
+        gUnrealized += p.qty * price - cost;
+        gHasData     = true;
+      }
     });
-    const gPnl    = gNow - gCost;
-    const gRetPct = gCost>0 ? (gPnl/gCost)*100 : 0;
-    const gWeight = totalCost>0 ? (gCost/totalCost)*100 : 0;
-    const gContrib= gWeight * gRetPct / 100; // contribución al retorno total
-    const gUp     = gPnl >= 0;
-    return { label:g.label, gCost, gNow, gPnl, gRetPct, gWeight, gContrib, gUp, gHasData };
+    const gPnlUnreal  = gNow - gCost;
+    const gPnlTotal   = gRealized + (gHasData ? gUnrealized : 0);
+    const gRetUnreal  = gCost>0 ? (gPnlUnreal/gCost)*100 : 0;
+    const gRetReal    = gCost>0 ? (gRealized/gCost)*100 : 0;
+    const gRetTotal   = gCost>0 ? (gPnlTotal/gCost)*100 : 0;
+    const gWeight     = totalCost>0 ? (gCost/totalCost)*100 : 0;
+    const gContrib    = gWeight * gRetTotal / 100;
+    const gUp         = gPnlUnreal >= 0;
+    const gUpR        = gRealized >= 0;
+    const gUpT        = gPnlTotal >= 0;
+    return { label:g.label, gCost, gNow, gRealized, gUnrealized, gPnlUnreal, gPnlTotal, gRetUnreal, gRetReal, gRetTotal, gWeight, gContrib, gUp, gUpR, gUpT, gHasData };
   }).filter(Boolean);
 
   const perfRows = themePerf.map(g => `
@@ -617,9 +627,13 @@ async function renderPortfolio(id) {
       <td>$${f2(g.gCost,0)}</td>
       <td>${f2(g.gWeight)}%</td>
       <td>${g.gHasData?'$'+f2(g.gNow,0):'—'}</td>
-      <td>${g.gHasData?`<span class="pill ${g.gUp?'up':'dn'}">${g.gUp?'+':'-'}$${f2(Math.abs(g.gPnl),0)}</span>`:'—'}</td>
-      <td>${g.gHasData?`<span class="pill ${g.gUp?'up':'dn'}">${g.gUp?'+':''}${f2(g.gRetPct)}%</span>`:'—'}</td>
-      <td>${g.gHasData?`<span style="color:${g.gUp?'var(--up)':'var(--dn)'}">${g.gUp?'+':''}${f2(g.gContrib)}%</span>`:'—'}</td>
+      <td>${g.gRealized!==0?`<span class="pill ${g.gUpR?'up':'dn'}">${g.gUpR?'+':'-'}$${f2(Math.abs(g.gRealized),0)}</span>`:'<span style="color:var(--t3)">—</span>'}</td>
+      <td>${g.gRealized!==0?`<span style="color:${g.gUpR?'var(--up)':'var(--dn)'}">${g.gUpR?'+':''}${f2(g.gRetReal)}%</span>`:'<span style="color:var(--t3)">—</span>'}</td>
+      <td>${g.gHasData?`<span class="pill ${g.gUp?'up':'dn'}">${g.gUp?'+':'-'}$${f2(Math.abs(g.gPnlUnreal),0)}</span>`:'—'}</td>
+      <td>${g.gHasData?`<span style="color:${g.gUp?'var(--up)':'var(--dn)'}">${g.gUp?'+':''}${f2(g.gRetUnreal)}%</span>`:'—'}</td>
+      <td>${g.gHasData?`<span class="pill ${g.gUpT?'up':'dn'}">${g.gUpT?'+':'-'}$${f2(Math.abs(g.gPnlTotal),0)}</span>`:'—'}</td>
+      <td>${g.gHasData?`<span style="color:${g.gUpT?'var(--up)':'var(--dn)'};">${g.gUpT?'+':''}${f2(g.gRetTotal)}%</span>`:'—'}</td>
+      <td>${g.gHasData?`<span style="color:${g.gUpT?'var(--up)':'var(--dn)'}">${g.gUpT?'+':''}${f2(g.gContrib)}%</span>`:'—'}</td>
     </tr>`).join('');
 
   const weightedReturn = hasData ? themePerf.reduce((acc,g) => acc + (g.gHasData?g.gContrib:0), 0) : null;
@@ -645,20 +659,28 @@ async function renderPortfolio(id) {
             <th>Capital invertido</th>
             <th>Peso</th>
             <th>Valor actual</th>
-            <th>P&L $</th>
-            <th>Retorno</th>
+            <th>P&L realizado</th>
+            <th>Ret. realizado</th>
+            <th>P&L no realizado</th>
+            <th>Ret. no realizado</th>
+            <th>P&L total</th>
+            <th>Ret. total</th>
             <th>Contribución</th>
           </tr></thead>
           <tbody>
             ${perfRows}
             <tr style="border-top:1px solid var(--brd)">
-              <td style="text-align:left;font-family:var(--sans);font-weight:700">TOTAL PORTFOLIO</td>
+              <td style="text-align:left;font-family:var(--sans);font-weight:700">TOTAL</td>
               <td style="font-weight:600">$${f2(totalCost,0)}</td>
               <td style="font-weight:600">100%</td>
               <td style="font-weight:600">${hasData?'$'+f2(totalNow,0):'—'}</td>
+              <td><span class="pill ${upR?'up':'dn'}">${upR?'+':'-'}$${f2(Math.abs(totalRealized),0)}</span></td>
+              <td><span style="color:${upR?'var(--up)':'var(--dn)'}">${upR?'+':''}${f2(pctReal)}%</span></td>
               <td><span class="pill ${up?'up':'dn'}">${up?'+':'-'}$${f2(Math.abs(pnlTotal),0)}</span></td>
-              <td><span class="pill ${up?'up':'dn'}">${up?'+':''}${f2(pctTotal)}%</span></td>
-              <td><span style="color:${upC?'var(--up)':'var(--dn)'};font-weight:600">${upC?'+':'-'}$${f2(Math.abs(totalCombined),0)} (${upC?'+':''}${f2(pctCombined)}%)</span></td>
+              <td><span style="color:${up?'var(--up)':'var(--dn)'}">${up?'+':''}${f2(pctTotal)}%</span></td>
+              <td><span class="pill ${upC?'up':'dn'}">${upC?'+':'-'}$${f2(Math.abs(totalCombined),0)}</span></td>
+              <td><span style="color:${upC?'var(--up)':'var(--dn)'};">${upC?'+':''}${f2(pctCombined)}%</span></td>
+              <td><span style="color:${upC?'var(--up)':'var(--dn)'};font-weight:600">${weightedReturn!=null?(weightedReturn>=0?'+':'')+f2(weightedReturn)+'%':'—'}</span></td>
             </tr>
           </tbody>
         </table>
