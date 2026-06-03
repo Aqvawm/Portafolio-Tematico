@@ -257,8 +257,8 @@ const PORTFOLIOS = {
     {t:'GE',  qty:84,     cost:295.4889},
     {t:'RTX', qty:140,    cost:178.3791},
     {t:'CIBR',qty:1334,   cost:74.905},
-    {t:'PANW',qty:77,     cost:220.465},
-    {t:'CRWD',qty:31,     cost:553.235},
+    {t:'PANW',qty:77,     cost:220.465,  realizedPnl: 36*(278.85-220.465)},
+    {t:'CRWD',qty:31,     cost:553.235,  realizedPnl: 14*(726.10-553.235)},
     {t:'ZS',  qty:144,    cost:138.505},
     {t:'URA', qty:1867,   cost:53.53},
     {t:'CEG', qty:90,     cost:276.5935},
@@ -276,8 +276,8 @@ const PORTFOLIOS = {
     {t:'GE',  qty:84,     cost:294.26},
     {t:'RTX', qty:140,    cost:177.99},
     {t:'CIBR',qty:1002,   cost:74.79},
-    {t:'PANW',qty:78,     cost:218.43},
-    {t:'CRWD',qty:31,     cost:551.75},
+    {t:'PANW',qty:78,     cost:218.43,   realizedPnl: 36*(274.755-218.43)},
+    {t:'CRWD',qty:31,     cost:551.75,   realizedPnl: 14*(724.192-551.75)},
     {t:'ZS',  qty:145,    cost:136.875},
     {t:'URA', qty:1402,   cost:53.47},
     {t:'CEG', qty:92,     cost:272.28},
@@ -499,17 +499,40 @@ async function renderPortfolio(id) {
   const el  = document.getElementById('view-'+id);
   const pos = PORTFOLIOS[id];
   let totalCost=0, totalNow=0, hasData=false;
+  let totalRealized=0, totalUnrealized=0;
 
   const rows = pos.map(p => {
-    const price = cache[p.t]?.q?.c;
-    const name  = cache[p.t]?.p?.name || '';
-    const cost  = p.qty * p.cost;
-    const now   = price != null ? p.qty * price : null;
-    const pnl   = now != null ? now - cost : null;
-    const pct   = pnl != null ? (pnl/cost)*100 : null;
-    totalCost  += cost;
+    const price      = cache[p.t]?.q?.c;
+    const name       = cache[p.t]?.p?.name || '';
+    const cost       = p.qty * p.cost;
+    const now        = price != null ? p.qty * price : null;
+    const realized   = p.realizedPnl || 0;
+    const unrealized = now != null ? now - cost : null;
+    const totalPnl   = unrealized != null ? unrealized + realized : null;
+    // pcts sobre coste de posición actual (qty actual * cost)
+    const realPct    = cost > 0 ? (realized / cost) * 100 : 0;
+    const unrealPct  = unrealized != null ? (unrealized / cost) * 100 : null;
+    const totalPct   = totalPnl != null ? (totalPnl / cost) * 100 : null;
+
+    totalCost += cost;
     if (now != null) { totalNow += now; hasData = true; }
-    const up = pnl != null && pnl >= 0;
+    totalRealized   += realized;
+    if (unrealized != null) totalUnrealized += unrealized;
+
+    const upR  = realized >= 0;
+    const upU  = unrealized != null && unrealized >= 0;
+    const upT  = totalPnl != null && totalPnl >= 0;
+
+    const pillR = realized !== 0
+      ? `<span class="pill ${upR?'up':'dn'}">${upR?'+':'-'}$${f2(Math.abs(realized),0)}</span><br><span style="font-size:10px;color:${upR?'var(--up)':'var(--dn)'}">${upR?'+':''}${f2(realPct)}%</span>`
+      : '<span style="color:var(--t3)">—</span>';
+    const pillU = unrealized != null
+      ? `<span class="pill ${upU?'up':'dn'}">${upU?'+':'-'}$${f2(Math.abs(unrealized),0)}</span><br><span style="font-size:10px;color:${upU?'var(--up)':'var(--dn)'}">${upU?'+':''}${f2(unrealPct)}%</span>`
+      : '<span style="color:var(--t3)">—</span>';
+    const pillT = totalPnl != null
+      ? `<span class="pill ${upT?'up':'dn'}">${upT?'+':'-'}$${f2(Math.abs(totalPnl),0)}</span><br><span style="font-size:10px;color:${upT?'var(--up)':'var(--dn)'}">${upT?'+':''}${f2(totalPct)}%</span>`
+      : '—';
+
     return `<tr onclick="openDetail('${p.t}')">
       <td><span style="font-weight:600;font-family:var(--mono)">${p.t}</span><br><span style="font-size:11px;color:var(--t2);font-family:var(--sans)">${name}</span></td>
       <td>${p.qty.toLocaleString('en-US')}</td>
@@ -517,14 +540,21 @@ async function renderPortfolio(id) {
       <td>${price!=null?'$'+f2(price):'<span style="color:var(--t3)">—</span>'}</td>
       <td>$${f2(cost,0)}</td>
       <td>${now!=null?'$'+f2(now,0):'<span style="color:var(--t3)">—</span>'}</td>
-      <td>${pnl!=null?`<span class="pill ${up?'up':'dn'}">${up?'+':'-'}$${f2(Math.abs(pnl),0)}</span>`:'—'}</td>
-      <td>${pct!=null?`<span class="pill ${up?'up':'dn'}">${up?'+':''}${f2(pct)}%</span>`:'—'}</td>
+      <td>${pillR}</td>
+      <td>${pillU}</td>
+      <td>${pillT}</td>
     </tr>`;
   }).join('');
 
-  const pnlTotal = totalNow - totalCost;
-  const pctTotal = totalCost>0?(pnlTotal/totalCost)*100:0;
-  const up = pnlTotal >= 0;
+  const pnlTotal   = totalNow - totalCost;
+  const totalCombined = totalRealized + (hasData ? totalUnrealized : 0);
+  const pctTotal   = totalCost>0?(pnlTotal/totalCost)*100:0;
+  const pctReal    = totalCost>0?(totalRealized/totalCost)*100:0;
+  const pctUnreal  = totalCost>0?(totalUnrealized/totalCost)*100:0;
+  const pctCombined= totalCost>0?(totalCombined/totalCost)*100:0;
+  const up         = pnlTotal >= 0;
+  const upR        = totalRealized >= 0;
+  const upC        = totalCombined >= 0;
 
   // Build theme summary blocks
   const themeSections = GROUPS.map(g => {
@@ -598,9 +628,12 @@ async function renderPortfolio(id) {
     <div class="psummary">
       <div class="psc"><div class="psl">Capital invertido</div><div class="psv">$${f2(totalCost,0)}</div></div>
       <div class="psc"><div class="psl">Valor actual</div><div class="psv">${hasData?'$'+f2(totalNow,0):'—'}</div></div>
-      <div class="psc"><div class="psl">P&L total</div><div class="psv ${up?'up':'dn'}">${hasData?(up?'+':'-')+'$'+f2(Math.abs(pnlTotal),0):'—'}</div></div>
-      <div class="psc"><div class="psl">Retorno total</div><div class="psv ${up?'up':'dn'}">${hasData?(up?'+':'')+f2(pctTotal)+'%':'—'}</div></div>
-      <div class="psc"><div class="psl">Retorno ponderado</div><div class="psv ${weightedReturn!=null&&weightedReturn>=0?'up':'dn'}">${weightedReturn!=null?(weightedReturn>=0?'+':'')+f2(weightedReturn)+'%':'—'}</div></div>
+      <div class="psc"><div class="psl">P&L realizado</div><div class="psv ${upR?'up':'dn'}">${upR?'+':'-'}$${f2(Math.abs(totalRealized),0)}</div></div>
+      <div class="psc"><div class="psl">Ret. realizado</div><div class="psv ${upR?'up':'dn'}">${upR?'+':''}${f2(pctReal)}%</div></div>
+      <div class="psc"><div class="psl">P&L no realizado</div><div class="psv ${up?'up':'dn'}">${hasData?(up?'+':'-')+'$'+f2(Math.abs(pnlTotal),0):'—'}</div></div>
+      <div class="psc"><div class="psl">Ret. no realizado</div><div class="psv ${up?'up':'dn'}">${hasData?(up?'+':'')+f2(pctTotal)+'%':'—'}</div></div>
+      <div class="psc"><div class="psl">P&L total</div><div class="psv ${upC?'up':'dn'}">${hasData?(upC?'+':'-')+'$'+f2(Math.abs(totalCombined),0):'—'}</div></div>
+      <div class="psc"><div class="psl">Retorno total</div><div class="psv ${upC?'up':'dn'}">${hasData?(upC?'+':'')+f2(pctCombined)+'%':'—'}</div></div>
     </div>
 
     <div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);font-family:var(--mono);margin-bottom:.85rem">Performance ponderado por temática</div>
@@ -625,7 +658,7 @@ async function renderPortfolio(id) {
               <td style="font-weight:600">${hasData?'$'+f2(totalNow,0):'—'}</td>
               <td><span class="pill ${up?'up':'dn'}">${up?'+':'-'}$${f2(Math.abs(pnlTotal),0)}</span></td>
               <td><span class="pill ${up?'up':'dn'}">${up?'+':''}${f2(pctTotal)}%</span></td>
-              <td><span style="color:${up?'var(--up)':'var(--dn)'};font-weight:600">${weightedReturn!=null?(weightedReturn>=0?'+':'')+f2(weightedReturn)+'%':'—'}</span></td>
+              <td><span style="color:${upC?'var(--up)':'var(--dn)'};font-weight:600">${upC?'+':'-'}$${f2(Math.abs(totalCombined),0)} (${upC?'+':''}${f2(pctCombined)}%)</span></td>
             </tr>
           </tbody>
         </table>
@@ -637,12 +670,15 @@ async function renderPortfolio(id) {
 
     <div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);font-family:var(--mono);margin:1.5rem 0 .85rem">Detalle de posiciones</div>
     <div class="ptw">
-      <div class="ptt">Portfolio ${id} — ${pos.length} posiciones · compra 30/04/2026</div>
+      <div class="ptt">Portfolio ${id} — ${pos.length} posiciones</div>
       <div style="overflow-x:auto">
         <table class="ptable">
           <thead><tr>
             <th style="text-align:left">Activo</th><th>Cantidad</th><th>P. compra</th>
-            <th>P. actual</th><th>Coste</th><th>Valor actual</th><th>P&L $</th><th>P&L %</th>
+            <th>P. actual</th><th>Coste</th><th>Valor actual</th>
+            <th>P&L realizado</th>
+            <th>P&L no realizado</th>
+            <th>P&L total</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
