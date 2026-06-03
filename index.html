@@ -168,11 +168,13 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:1rem 2
       <button class="vtb on" onclick="switchView('mercado',this)">Mercado</button>
       <button class="vtb" onclick="switchView('R',this)">Portfolio R</button>
       <button class="vtb" onclick="switchView('BG',this)">Portfolio BG</button>
+      <button class="vtb" onclick="switchView('O',this)">Portfolio O</button>
       <button class="vtb" onclick="switchView('docs',this)">📎 Documentos</button>
     </div>
     <div id="view-mercado"></div>
     <div id="view-R" style="display:none"></div>
     <div id="view-BG" style="display:none"></div>
+    <div id="view-O" style="display:none"></div>
     <div id="view-docs" style="display:none">
       <div class="fdrop-wrap">
         <div class="fdrop-hdr" onclick="toggleDrop()">
@@ -237,31 +239,57 @@ const GROUPS = [
   { label:'Silver',                   tickers:['SLV','WPM','PAAS'] },
   { label:'Semiconductors',           tickers:['SOXX','NVDA','MU','SNDK'] },
   { label:'Aerospace & Defense',      tickers:['ITA','GE','RTX'] },
-  { label:'Cybersecurity',            tickers:['CIBR','PANW','CRWD'] },
+  { label:'Cybersecurity',            tickers:['CIBR','PANW','CRWD','ZS'] },
   { label:'Uranium & Nuclear Energy', tickers:['URA','CEG','BWXT'] },
 ];
-const TICKERS = GROUPS.flatMap(g => g.tickers);
+const TICKERS = [...new Set(GROUPS.flatMap(g => g.tickers))];
 
 const PORTFOLIOS = {
   R: [
-    {t:'SLV', qty:2509, cost:79.5899}, {t:'WPM', qty:176,  cost:141.755},
-    {t:'PAAS',qty:391,  cost:63.831},  {t:'SOXX',qty:188,  cost:529.835},
-    {t:'NVDA',qty:110,  cost:226.17},  {t:'MU',  qty:31,   cost:798.13},
-    {t:'SNDK',qty:17,   cost:1449.25}, {t:'ITA', qty:443,  cost:225.695},
-    {t:'GE',  qty:84,   cost:295.4889},{t:'RTX', qty:140,  cost:178.3791},
-    {t:'CIBR',qty:1334, cost:74.905},  {t:'PANW',qty:113,  cost:220.465},
-    {t:'CRWD',qty:45,   cost:553.235}, {t:'URA', qty:1867, cost:53.53},
-    {t:'CEG', qty:90,   cost:276.5935},{t:'BWXT',qty:120,  cost:206.815},
+    {t:'SLV', qty:2509,   cost:79.5899},
+    {t:'WPM', qty:555,    cost:134.8340},
+    {t:'PAAS',qty:1275,   cost:58.7889},
+    {t:'SOXX',qty:188,    cost:529.835},
+    {t:'NVDA',qty:110,    cost:226.17},
+    {t:'MU',  qty:31,     cost:798.13},
+    {t:'SNDK',qty:17,     cost:1449.25},
+    {t:'ITA', qty:443,    cost:225.695},
+    {t:'GE',  qty:84,     cost:295.4889},
+    {t:'RTX', qty:140,    cost:178.3791},
+    {t:'CIBR',qty:1334,   cost:74.905},
+    {t:'PANW',qty:77,     cost:220.465},
+    {t:'CRWD',qty:31,     cost:553.235},
+    {t:'ZS',  qty:144,    cost:138.505},
+    {t:'URA', qty:1867,   cost:53.53},
+    {t:'CEG', qty:90,     cost:276.5935},
+    {t:'BWXT',qty:120,    cost:206.815},
   ],
   BG: [
-    {t:'SLV', qty:2511, cost:79.68},   {t:'WPM', qty:176,  cost:142.0},
-    {t:'PAAS',qty:390,  cost:63.91},   {t:'SOXX',qty:142,  cost:524.92},
-    {t:'NVDA',qty:111,  cost:224.59},  {t:'MU',  qty:31,   cost:807.8},
-    {t:'SNDK',qty:17,   cost:1440.1},  {t:'ITA', qty:334,  cost:224.26},
-    {t:'GE',  qty:84,   cost:294.26},  {t:'RTX', qty:140,  cost:177.99},
-    {t:'CIBR',qty:1002, cost:74.79},   {t:'PANW',qty:114,  cost:218.43},
-    {t:'CRWD',qty:45,   cost:551.75},  {t:'URA', qty:1402, cost:53.47},
-    {t:'CEG', qty:92,   cost:272.28},  {t:'BWXT',qty:120,  cost:206.5},
+    {t:'SLV', qty:3973.84, cost:75.5129},
+    {t:'WPM', qty:176,    cost:142.0},
+    {t:'PAAS',qty:390,    cost:63.91},
+    {t:'SOXX',qty:142,    cost:524.92},
+    {t:'NVDA',qty:111,    cost:224.59},
+    {t:'MU',  qty:31,     cost:807.8},
+    {t:'SNDK',qty:17,     cost:1440.1},
+    {t:'ITA', qty:334,    cost:224.26},
+    {t:'GE',  qty:84,     cost:294.26},
+    {t:'RTX', qty:140,    cost:177.99},
+    {t:'CIBR',qty:1002,   cost:74.79},
+    {t:'PANW',qty:78,     cost:218.43},
+    {t:'CRWD',qty:31,     cost:551.75},
+    {t:'ZS',  qty:145,    cost:136.875},
+    {t:'URA', qty:1402,   cost:53.47},
+    {t:'CEG', qty:92,     cost:272.28},
+    {t:'BWXT',qty:120,    cost:206.5},
+  ],
+  O: [
+    {t:'URA', qty:1985,   cost:50.355},
+    {t:'CIBR',qty:1272,   cost:78.555},
+    {t:'ITA', qty:453,    cost:220.40},
+    {t:'SOXX',qty:194,    cost:513.35},
+    {t:'WPM', qty:309,    cost:129.04},
+    {t:'SLV', qty:650,    cost:92.1507},
   ]
 };
 
@@ -340,6 +368,7 @@ async function doRefresh() {
   updateStats();
   if (curView === 'R')  renderPortfolio('R');
   if (curView === 'BG') renderPortfolio('BG');
+  if (curView === 'O')  renderPortfolio('O');
   set('ts', 'Actualizado ' + new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}));
   document.getElementById('nspin').style.display = 'none';
 }
@@ -447,9 +476,11 @@ function switchView(name, btn) {
   document.getElementById('view-mercado').style.display = name==='mercado'?'block':'none';
   document.getElementById('view-R').style.display       = name==='R'?'block':'none';
   document.getElementById('view-BG').style.display      = name==='BG'?'block':'none';
+  document.getElementById('view-O').style.display       = name==='O'?'block':'none';
   document.getElementById('view-docs').style.display    = name==='docs'?'block':'none';
   if (name==='R')  renderPortfolio('R');
   if (name==='BG') renderPortfolio('BG');
+  if (name==='O')  renderPortfolio('O');
 }
 
 // ── THEME DESCRIPTIONS ────────────────────────────────────────────────────
